@@ -1,0 +1,20 @@
+# ===============================================
+# =          STRIPE & PAYMENT CONFIG            =
+# ===============================================
+stripe:
+  api-key: ${STRIPE_API_KEY}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET}
+
+payment:
+  platform-commission: ${PAYMENT_PLATFORM_COMMISSION:0.15}
+  min-wallet-recharge: ${PAYMENT_MIN_RECHARGE:50.00}
+  max-wallet-recharge: ${PAYMENT_MAX_RECHARGE:5000.00}
+  payout-day: ${PAYMENT_PAYOUT_DAY:FRIDAY}
+
+# ===============================================
+# =          SECURITY & ENCRYPTION              =
+# ===============================================
+encryption:
+  algorithm: AES
+  key: ${ENCRYPTION_KEY}
+  transformation: AES/CBC/PKCS5Padding

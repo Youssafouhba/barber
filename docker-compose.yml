@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: portfolio_mysql
+
+    # Environment Variables
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: halaq-db
+      MYSQL_PASSWORD: root
+      TZ: 'UTC'
+
+    # Port Mapping
+    ports:
+      - "3306:3306"
+
+    # Volumes for data persistence
+    volumes:
+      - mysql_data:/var/lib/mysql
+    # Health Check
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password_123"]
+      timeout: 20s
+      retries: 10
+      interval: 10s
+
+    # Network
+    networks:
+      - portfolio_network
+
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # phpMyAdmin (Optional - GUI for MySQL)
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: portfolio_phpmyadmin
+
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: portfolio_user
+      PMA_PASSWORD: portfolio_password_secure
+      PMA_ROOT_PASSWORD: root_password_123
+
+    ports:
+      - "8081:81"
+
+    depends_on:
+      - mysql
+
+    networks:
+      - portfolio_network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  portfolio_network:
+    driver: bridge

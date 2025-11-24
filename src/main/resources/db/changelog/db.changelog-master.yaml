@@ -1,0 +1,6 @@
+databaseChangeLog:
+  # C'est ici que vous inclurez vos fichiers de migration réels.
+  # Par défaut, nous en incluons un qui contiendra l'initialisation du schéma.
+  - include:
+      file: db/changelog/initial_schema.yaml
+      relativeToChangelogFile: false

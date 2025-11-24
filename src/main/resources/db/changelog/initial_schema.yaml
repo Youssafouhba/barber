@@ -1,0 +1,17 @@
+databaseChangeLog:
+  # Migration initiale de la base de données
+  - changeSet:
+      id: 20251028-01-initial-schema
+      author: admin
+      changes:
+      # Exemple de création de table (vous devriez le remplacer par vos propres scripts)
+      # - createTable:
+      #     tableName: exemple_table
+      #     columns:
+      #       - column:
+      #           name: id
+      #           type: BIGINT
+      #           constraints:
+      #             primaryKey: true
+      #             nullable: false
+      # ...

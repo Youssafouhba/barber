@@ -1,0 +1,17 @@
+# ===============================================
+# =          MINIO S3 STORAGE CONFIG            =
+# ===============================================
+app:
+  minio:
+    bucket:
+      diplomas: ${MINIO_DIPLOMA_BUCKET_NAME:diplomas}
+      certifications: ${MINIO_CERTIFICATION_BUCKET_NAME:certifications}
+      cins: ${MINIO_CIN_BUCKET_NAME:id-cards}
+      portfolios: ${MINIO_PORTFOLIO_BUCKET_NAME:portfolios}
+      avatars: ${MINIO_AVATAR_BUCKET_NAME:avatars}
+
+minio:
+  url: ${MINIO_URL}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket-name: ${MINIO_BUCKET_NAME:cv-uploads}

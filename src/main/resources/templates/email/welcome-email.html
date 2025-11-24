@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Welcome to Halaq.ma</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Poppins', sans-serif; background-color: #F9F9F9; color: #121212;">
+<table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; margin: 20px auto; border: 1px solid #EAEAEA; background-color: #FFFFFF;">
+    <tr>
+        <td align="center" bgcolor="#C19A6B" style="padding: 30px 0;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-family: 'Poppins', sans-serif;">Halaq.ma</h1>
+        </td>
+    </tr>
+    <tr>
+        <td style="padding: 40px 30px;">
+            <h2 style="font-family: 'Poppins', sans-serif; margin-top: 0;">Welcome, <span th:text="${userName}">User</span>!</h2>
+            <p style="line-height: 1.6;">
+                We are thrilled to have you join the Halaq.ma community. Your account has been created successfully on <span th:text="${registrationDate}"></span>.
+            </p>
+            <p style="line-height: 1.6;">
+                To get started and ensure your account is secure, please verify your email address by clicking the button below.
+            </p>
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 30px 0;">
+                <tr>
+                    <td align="center">
+                        <a th:href="${verificationUrl}" target="_blank"
+                           style="background-color: #121212; color: #ffffff; padding: 15px 25px; text-decoration: none; border-radius: 25px; display: inline-block; font-weight: bold;">
+                            Verify Your Account
+                        </a>
+                    </td>
+                </tr>
+            </table>
+            <p style="line-height: 1.6;">
+                If you did not create this account, please disregard this email.
+            </p>
+            <p style="line-height: 1.6;">
+                Best regards,<br>
+                The Halaq.ma Team
+            </p>
+        </td>
+    </tr>
+    <tr>
+        <td bgcolor="#F9F9F9" style="padding: 20px 30px; text-align: center;">
+            <p style="margin: 0; color: #666666; font-size: 12px;">
+                &copy; <span th:text="${#temporals.year(#temporals.createNow())}">2025</span> Halaq.ma. All rights reserved.
+            </p>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

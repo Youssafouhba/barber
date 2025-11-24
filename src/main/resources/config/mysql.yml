@@ -1,0 +1,15 @@
+spring:
+  # Configuration de la base de donn?es (essentiel car votre starter a des entit?s JPA)
+  datasource:
+    url: jdbc:mysql://localhost:3306/halaq-db?createDatabaseIfNotExist=true
+    username: root
+    password: root
+  jpa:
+    hibernate:
+      ddl-auto: update # Cr?e les tables automatiquement'
+    show-sql: true
+    properties:
+      hibernate:
+        batch_size: 50
+        order_inserts: true
+        order_updates: true
