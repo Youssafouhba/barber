@@ -1,30 +1,86 @@
 package com.halaq.backend.service.controller;
 
+import com.halaq.backend.core.controller.AbstractController;
+import com.halaq.backend.core.security.entity.User;
+import com.halaq.backend.service.converter.BookingConverter;
 import com.halaq.backend.service.criteria.BookingCriteria;
 import com.halaq.backend.service.dto.AvailableSlotRequest;
 import com.halaq.backend.service.dto.BookingDto;
+import com.halaq.backend.service.dto.TrackingInfoDTO;
 import com.halaq.backend.service.entity.Booking;
 import com.halaq.backend.service.service.facade.BookingService;
-import com.halaq.backend.service.converter.BookingConverter;
-import com.halaq.backend.core.controller.AbstractController;
 import com.halaq.backend.user.entity.Barber;
+import com.halaq.backend.user.service.facade.BarberLiveLocationsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.geo.Point;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static com.halaq.backend.core.security.common.SecurityUtil.getCurrentUser;
+
 @Tag(name = "Booking Management")
 @RestController
 @RequestMapping("/api/v1/bookings")
 public class BookingController extends AbstractController<Booking, BookingDto, BookingCriteria, BookingService, BookingConverter> {
-
+    @Autowired
+    private BarberLiveLocationsService locationService;
     public BookingController(BookingService service, BookingConverter converter) {
         super(service, converter);
     }
 
+
+    @GetMapping("/{bookingId}/tracking")
+    public ResponseEntity<TrackingInfoDTO> getBookingTracking(@PathVariable Long bookingId) {
+        // 1. Récupérer le Booking
+        Booking booking = service.findById(bookingId); // Votre service existant
+        if (booking == null) return ResponseEntity.notFound().build();
+
+        // 2. Sécurité : Vérifier que le user connecté est bien le client ou le barbier
+        User currentUser = getCurrentUser();
+        if (!currentUser.getId().equals(booking.getClient().getId()) &&
+                !currentUser.getId().equals(booking.getBarber().getId())) {
+            return ResponseEntity.status(403).build();
+        }
+
+        // 3. Récupérer la position LIVE du barbier depuis Redis
+        // On suppose que locationService a une méthode pour récupérer un point unique
+        // Si elle n'existe pas, il faut l'ajouter dans BarberLiveLocationsService
+        Point barberPos = locationService.getBarberLocation(booking.getBarber().getId());
+
+        // Si pas de position Redis (barbier hors ligne/pas encore bougé), on prend sa position statique ou null
+        double bLat = (barberPos != null) ? barberPos.getY() : 0.0; // Y = Lat
+        double bLon = (barberPos != null) ? barberPos.getX() : 0.0; // X = Lon
+
+        // 4. Construire le DTO
+        TrackingInfoDTO dto = new TrackingInfoDTO();
+        dto.setBookingId(booking.getId());
+        dto.setStatus(booking.getStatus());
+
+        dto.setBarberId(booking.getBarber().getId());
+        dto.setBarberName(booking.getBarber().getFullName());
+        dto.setBarberPhone(booking.getBarber().getPhone());
+        dto.setBarberAvatar(booking.getBarber().getAvatar());
+
+        dto.setClientLatitude(booking.getDestinationLatitude());
+        dto.setClientLongitude(booking.getDestinationLongitude());
+
+        dto.setBarberLatitude(bLat);
+        dto.setBarberLongitude(bLon);
+
+        // Calcul distance simple (Haversine) pour info
+        // Vous pouvez aussi le faire côté front
+        if (bLat != 0.0 && bLon != 0.0) {
+            // ... calcul distance ...
+            // dto.setDistanceKm(...);
+        }
+
+        return ResponseEntity.ok(dto);
+    }
 
     @Operation(summary = "Finds bookings by criteria")
     @PostMapping("/find-by-criteria")

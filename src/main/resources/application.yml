@@ -73,13 +73,13 @@ app:
     model-id: ${MINDEE_MODEL_ID}
 
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8082}
     allowed-methods: "*"
     allowed-headers: "*"
     allow-credentials: true
   security:
     jwt:
-      secret-key: ${JWT_SECRET_KEY}
+      secret-key: ${JWT_SECRET_KEY:une-cle-secrete-tres-longue-et-securisee-pour-le-test-avec-hs512}
       expiration-ms: 3600000
       claims:
         enabled-claims: "id,email,username,enabled,roles"
@@ -89,6 +89,13 @@ app:
     endpoints:
       permitAll:
         - "/**" # A ajuster selon tes besoins
+        - "/ws/websocket/**"
+        - "/actuator/**"
+        - "/swagger-ui/**"
+        - "/v3/api-docs/**"
+        - "/h2-console/**"
 logging:
   level:
     com.halaq.backend: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.messaging: DEBUG

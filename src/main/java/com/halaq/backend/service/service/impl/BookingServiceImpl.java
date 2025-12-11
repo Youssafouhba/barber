@@ -1,21 +1,19 @@
 package com.halaq.backend.service.service.impl;
 
 import com.halaq.backend.core.security.entity.User;
+import com.halaq.backend.core.service.AbstractServiceImpl;
+import com.halaq.backend.service.criteria.BookingCriteria;
 import com.halaq.backend.service.dto.AvailableSlotRequest;
-import com.halaq.backend.service.dto.BookingDto;
 import com.halaq.backend.service.entity.Availability;
 import com.halaq.backend.service.entity.Booking;
-import com.halaq.backend.service.criteria.BookingCriteria;
 import com.halaq.backend.service.entity.TimeBlock;
 import com.halaq.backend.service.repository.BookingRepository;
 import com.halaq.backend.service.repository.TimeBlockRepository;
 import com.halaq.backend.service.service.facade.BookingService;
 import com.halaq.backend.service.specification.BookingSpecification;
 import com.halaq.backend.shared.BookingStatus;
-import com.halaq.backend.core.service.AbstractServiceImpl;
 import com.halaq.backend.user.entity.Barber;
 import com.halaq.backend.user.service.facade.BarberService;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,10 +30,13 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
 
     private final BarberService barberService;
     private final TimeBlockRepository timeBlockRepository;
-    public BookingServiceImpl(BookingRepository dao, BarberService barberService, TimeBlockRepository timeBlockRepository) {
+    private final com.halaq.backend.notification.service.NotificationService notificationService;
+
+    public BookingServiceImpl(BookingRepository dao, BarberService barberService, TimeBlockRepository timeBlockRepository, com.halaq.backend.notification.service.NotificationService notificationService) {
         super(dao);
         this.barberService = barberService;
         this.timeBlockRepository = timeBlockRepository;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -44,6 +45,26 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
     }
 
     // --- LOGIQUE DE GESTION DES RÉSERVATIONS PAR LE COIFFEUR (NOUVEAU) ---
+
+    @Override
+    public Booking create(Booking entity) {
+        Booking booking = super.create(entity);
+
+
+        // Notify Barber
+        // Notify Barber
+        notificationService.createNotification(
+                booking.getBarber(),
+                "Nouvelle réservation reçue", // Titre plus pertinent pour le barbier
+                "Vous avez une nouvelle réservation avec " + booking.getClient().getFullName() +
+                        " le " + booking.getScheduledAt().toLocalDate().toString() +
+                        " à " + booking.getScheduledAt().toLocalTime().toString() + ".", // Ajout de la date et de l'heure pour plus de détails
+                com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                "{\"bookingId\": " + booking.getId() + "}"
+        );
+
+        return booking;
+    }
 
     /**
      * Permet au coiffeur d'accepter une réservation en attente.
@@ -77,7 +98,14 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
         if (booking.getStatus() == BookingStatus.REQUESTED) {
             booking.setStatus(BookingStatus.CONFIRMED);
 
-            // TODO: Ajouter la logique d'envoi de notification (Push/Email/SMS) au client.
+            // Notify Client
+            notificationService.createNotification(
+                    booking.getClient(),
+                    "Booking Confirmed",
+                    "Your booking with " + booking.getBarber().getFullName() + " has been confirmed.",
+                    com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                    "{\"bookingId\": " + booking.getId() + "}"
+            );
 
             return dao.save(booking);
         }
@@ -114,7 +142,14 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
         if (booking.getStatus() == BookingStatus.REQUESTED) {
             booking.setStatus(BookingStatus.REJECTED);
 
-            // TODO: Gérer l'envoi de notification au client et éventuellement proposer d'autres coiffeurs.
+            // Notify Client
+            notificationService.createNotification(
+                    booking.getClient(),
+                    "Booking Rejected",
+                    "Your booking with " + booking.getBarber().getFullName() + " has been rejected.",
+                    com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                    "{\"bookingId\": " + booking.getId() + "}"
+            );
 
             return dao.save(booking);
         }
@@ -151,7 +186,14 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
             if (booking.getStatus() == BookingStatus.CONFIRMED || booking.getStatus() == BookingStatus.IN_PROGRESS) {
             booking.setStatus(BookingStatus.COMPLETED);
 
-            // TODO: Déclencher le processus de paiement (si non payé d'avance) et inviter le client à laisser un avis.
+            // Notify Client
+            notificationService.createNotification(
+                    booking.getClient(),
+                    "Booking Completed",
+                    "Your booking with " + booking.getBarber().getFullName() + " is completed. Please rate your experience.",
+                    com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                    "{\"bookingId\": " + booking.getId() + "}"
+            );
 
             return dao.save(booking);
         }
@@ -355,7 +397,16 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
         // Logic to check if cancellation is allowed (e.g., not too close to appointment time)
         if (booking != null) {
             booking.setStatus(BookingStatus.CANCELED);
-            // TODO: Send notifications, handle potential refunds
+            
+            // Notify Barber
+            notificationService.createNotification(
+                    booking.getBarber(),
+                    "Booking Canceled",
+                    "Booking with " + booking.getClient().getFullName() + " has been canceled.",
+                    com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                    "{\"bookingId\": " + booking.getId() + "}"
+            );
+            
             return dao.save(booking);
         }
         return null;
@@ -389,7 +440,16 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
         Booking booking = findById(id);
         if (booking != null) {
             booking.setStatus(BookingStatus.CONFIRMED);
-            // TODO: Send notifications, handle potential refunds
+            
+            // Notify Client
+            notificationService.createNotification(
+                    booking.getClient(),
+                    "Booking Confirmed",
+                    "Your booking with " + booking.getBarber().getFullName() + " has been confirmed.",
+                    com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                    "{\"bookingId\": " + booking.getId() + "}"
+            );
+            
             return dao.save(booking);
         }
         return null;

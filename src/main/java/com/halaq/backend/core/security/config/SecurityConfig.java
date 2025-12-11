@@ -95,12 +95,15 @@ public class SecurityConfig {
                 auth.requestMatchers(roleMapping.getPaths().toArray(new String[0]))
                         .hasAnyAuthority(roleMapping.getAuthority()); // Utiliser hasAnyAuthority pour plus de flexibilité
             }
+            auth.requestMatchers("/ws/**").permitAll();
 
             // Toutes les autres requêtes doivent être authentifiées
             auth.anyRequest().authenticated();
+
         });
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
+
 
         return http.build();
     }

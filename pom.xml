@@ -47,6 +47,17 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- Spring Dotenv for .env file support -->
+        <dependency>
+            <groupId>me.paulschwarz</groupId>
+            <artifactId>spring-dotenv</artifactId>
+            <version>4.0.0</version>
+        </dependency>
+        <!-- websocket -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
         <!-- Liquibase for DB migrations -->
         <dependency>
             <groupId>org.liquibase</groupId>

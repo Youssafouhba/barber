@@ -14,6 +14,7 @@ import com.halaq.backend.user.dto.BarberProfileSetupDto;
 import com.halaq.backend.user.dto.StepData;
 import com.halaq.backend.user.entity.Barber;
 import com.halaq.backend.user.entity.Document;
+import com.halaq.backend.user.service.facade.BarberLiveLocationsService; // IMPORT AJOUTÉ
 import com.halaq.backend.user.service.facade.BarberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,12 +28,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.halaq.backend.core.security.common.SecurityUtil.getCurrentUser;
-
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 @Tag(name = "Barber Management")
 @RestController
 @RequestMapping("/api/v1/barbers")
@@ -40,10 +40,132 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
 
     private static final Logger logger = LoggerFactory.getLogger(BarberController.class);
 
-    public BarberController(BarberService service, BarberConverter converter) {
+    // Injection du service Redis
+    private final BarberLiveLocationsService barberLiveLocationsService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public BarberController(BarberService service, BarberConverter converter, BarberLiveLocationsService barberLiveLocationsService, SimpMessagingTemplate messagingTemplate) {
         super(service, converter);
+        this.barberLiveLocationsService = barberLiveLocationsService;
+        this.messagingTemplate = messagingTemplate;
+    }
+    @PostMapping("/live-location")
+    public ResponseEntity<?> updateLiveLocation(
+            @RequestParam double latitude,
+            @RequestParam double longitude) {
+
+        // ✅ Récupération de l'utilisateur
+        User currentUser = getCurrentUser();
+        if (currentUser == null) {
+            System.err.println("❌ Utilisateur non authentifié");
+            return ResponseEntity.status(401).build();
+        }
+
+        Long barberId = currentUser.getId();
+        System.out.println("📍 UPDATE LOCATION - Barber: " + barberId +
+                " | Lat: " + latitude + " | Lng: " + longitude);
+
+        try {
+            // ✅ Sauvegarde en Redis
+            barberLiveLocationsService.updateBarberLocation(barberId, latitude, longitude);
+            System.out.println("✅ Redis UPDATED pour barber " + barberId);
+
+            // ✅ Récupérer TOUTES les réservations actives de ce barbier
+            List<Booking> activeBookings = service.findActiveBookingsByBarberId(barberId);
+
+            if (activeBookings.isEmpty()) {
+                System.out.println("⚠️ Aucune réservation active pour ce barbier");
+            }
+
+            // ✅ Envoi WebSocket vers TOUTES les réservations actives
+            Map<String, Object> payload = Map.of(
+                    "latitude", latitude,
+                    "longitude", longitude,
+                    "barberId", barberId,
+                    "timestamp", System.currentTimeMillis()
+            );
+
+            List<String> destinations = new ArrayList<>();
+
+            for (Booking booking : activeBookings) {
+                // Envoyer à la fois vers le topic du barbier ET le topic de la réservation
+                String barberDestination = "/topic/barber/" + barberId;
+                String bookingDestination = "/topic/booking/" + booking.getId();
+
+                messagingTemplate.convertAndSend(barberDestination, payload);
+                messagingTemplate.convertAndSend(bookingDestination, payload);
+
+                destinations.add(barberDestination);
+                destinations.add(bookingDestination);
+
+                System.out.println("🚀 PUSH WebSocket vers booking " + booking.getId());
+            }
+
+            System.out.println("✅ WebSocket messages envoyés: " + destinations);
+
+            return ResponseEntity.ok().body(Map.of(
+                    "message", "Location updated",
+                    "barberId", barberId,
+                    "activeBookings", activeBookings.size(),
+                    "destinations", destinations
+            ));
+
+        } catch (Exception e) {
+            System.err.println("❌ ERREUR lors du push WebSocket: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of(
+                    "error", e.getMessage()
+            ));
+        }
     }
 
+    /**
+     * Recherche des barbiers à proximité (Géolocalisation Redis + Données SQL)
+     */
+    @Operation(summary = "Find barbers nearby (Radius search)")
+    @GetMapping("/search/nearby")
+    public ResponseEntity<List<BarberDto>> findNearbyBarbers(
+            @RequestParam double latitude,
+            @RequestParam double longitude,
+            @RequestParam(defaultValue = "10") double radius) {
+
+        try {
+            System.out.println("--- DÉBUT RECHERCHE ---");
+            System.out.println("Recherche autour de: " + latitude + ", " + longitude + " Rayon: " + radius);
+
+            // 1. Redis
+            List<Long> nearbyBarberIds = barberLiveLocationsService.findNearbyBarberIds(latitude, longitude, radius);
+            System.out.println("Redis a trouvé " + nearbyBarberIds.size() + " barbiers. IDs: " + nearbyBarberIds);
+
+            if (nearbyBarberIds.isEmpty()) {
+                System.out.println("-> Liste Redis vide. Arrêt.");
+                return ResponseEntity.ok(Collections.emptyList());
+            }
+
+            List<Barber> resultBarbers = new ArrayList<>();
+            for (Long id : nearbyBarberIds) {
+                Barber b = service.findById(id);
+                if (b == null) {
+                    System.out.println("ID " + id + " trouvé dans Redis mais PAS dans PostgreSQL !");
+                } else {
+                    System.out.println("Barbier ID " + id + " trouvé. isAvailable = " + b.getIsAvailable());
+                    if (Boolean.TRUE.equals(b.getIsAvailable())) {
+                        resultBarbers.add(b);
+                        System.out.println("-> Barbier AJOUTÉ aux résultats.");
+                    } else {
+                        System.out.println("-> Barbier REJETÉ (Non disponible).");
+                    }
+                }
+            }
+
+            System.out.println("--- FIN RECHERCHE : " + resultBarbers.size() + " résultats envoyés ---");
+            return ResponseEntity.ok(converter.toCustomDto(resultBarbers, Booking.class, Document.class));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
 
     /**
      * Find all barbers
@@ -72,17 +194,14 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
     public ResponseEntity<BarberDto> updateBarberStatus(
             @RequestBody AvailabilityStatusDto statusDTO) {
         User authenticatedUser = getCurrentUser();
-        // 1. Vérifie que l'utilisateur est bien connecté
         if (authenticatedUser == null) {
-            return ResponseEntity.status(401).build(); // Non autorisé
+            return ResponseEntity.status(401).build();
         }
 
-        // 2. On utilise l'ID de l'utilisateur authentifié (le token JWT)
-        // Un barbier ne peut pas changer le statut d'un autre barbier.
         try {
             return ResponseEntity.ok().body(converter.toDto(service.updateAvailability(authenticatedUser.getId(), statusDTO.isAvailable())));
         } catch (EntityNotFoundException e) {
-            return ResponseEntity.status(404).build(); // Barbier non trouvé
+            return ResponseEntity.status(404).build();
         }
     }
 
@@ -100,16 +219,12 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
             return ResponseEntity.ok(converter.toDto(updatedBarber));
         } catch (IllegalArgumentException e) {
             logger.error("[BarberController] Erreur validation Step2: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
         } catch (Exception e) {
             logger.error("[BarberController] Erreur lors de la mise à jour Step2", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(null);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
-
-
 
     /**
      * Mettre à jour un barber
@@ -129,8 +244,7 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
     }
 
     /**
-     * Upload avatar pour un barbier
-     * Supprime l'ancien avatar automatiquement
+     * Upload avatar
      */
     @PostMapping("/{barberId}/avatar/upload")
     public ResponseEntity<?> uploadAvatar(
@@ -138,49 +252,34 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
             @RequestParam("file") MultipartFile file) {
 
         if (file.isEmpty()) {
-            logger.warn("[BarberController] Avatar upload - File is empty");
-            return ResponseEntity.badRequest()
-                    .body(createErrorResponse("File cannot be empty", "400"));
+            return ResponseEntity.badRequest().body(createErrorResponse("File cannot be empty", "400"));
         }
 
         try {
-            logger.info("[BarberController] Avatar upload pour barbier: {}", barberId);
             FileUploadResult result = service.uploadBarberAvatar(barberId, file);
-            logger.info("[BarberController] Avatar uploadé avec succès");
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
-            logger.warn("[BarberController] Barber not found: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(createErrorResponse("Barber not found", "404"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(createErrorResponse("Barber not found", "404"));
         } catch (Exception e) {
-            logger.error("[BarberController] Erreur lors de l'upload", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse(e.getMessage(), "500"));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(e.getMessage(), "500"));
         }
     }
 
     /**
-     * Télécharger l'avatar d'un barbier
+     * Download avatar
      */
     @GetMapping("/{barberId}/avatar/download")
     public ResponseEntity<?> downloadAvatar(@PathVariable Long barberId) {
         try {
-            logger.info("[BarberController] Téléchargement avatar pour barbier: {}", barberId);
             byte[] fileContent = service.downloadBarberAvatar(barberId);
-
-            logger.info("[BarberController] Avatar téléchargé avec succès");
             return ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"avatar.jpg\"")
                     .body(fileContent);
         } catch (IllegalArgumentException e) {
-            logger.warn("[BarberController] Avatar not found: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(createErrorResponse("Avatar not found", "404"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(createErrorResponse("Avatar not found", "404"));
         } catch (Exception e) {
-            logger.error("[BarberController] Erreur lors du téléchargement", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse(e.getMessage(), "500"));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(e.getMessage(), "500"));
         }
     }
 
@@ -188,11 +287,9 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
     @GetMapping("/id/{id}")
     public ResponseEntity<BarberDto> findById(@PathVariable Long id) {
         try {
-            logger.info("[BarberController] Recherche barbier ID: {}", id);
             Barber barber = service.findById(id);
             return ResponseEntity.ok(converter.toCustomDto(barber, Booking.class));
         } catch (Exception e) {
-            logger.error("[BarberController] Erreur lors de la recherche", e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
@@ -201,40 +298,25 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
     @GetMapping("/id/{id}/with-lists")
     public ResponseEntity<BarberDto> findByIdWithAssociatedLists(@PathVariable Long id) {
         try {
-            logger.info("[BarberController] Recherche barbier ID avec listes: {}", id);
             return super.findWithAssociatedLists(id);
         } catch (Exception e) {
-            logger.error("[BarberController] Erreur lors de la recherche avec listes", e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
-
-    // Note: Barber approval has been moved to AdminBarberController
-    // Only admins can approve barbers via /api/admin/barbers/{id}/approve
 
     @Operation(summary = "Submits the barber's completed onboarding profile for validation")
     @PostMapping("/submit-profile-setup")
     public ResponseEntity<?> submitProfileSetup(@Valid @RequestBody BarberProfileSetupDto setupDto) {
         try {
-            logger.info("[BarberController] Soumission profil setup pour barbier");
             Barber updatedBarber = service.submitProfileForValidation(setupDto);
-            logger.info("[BarberController] Profil soumis avec succès");
-
             return ResponseEntity.ok(converter.toDto(updatedBarber));
         } catch (IllegalArgumentException e) {
-            logger.warn("[BarberController] Validation error: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(createErrorResponse(e.getMessage(), "400"));
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(createErrorResponse(e.getMessage(), "400"));
         } catch (Exception e) {
-            logger.error("[BarberController] Erreur lors de la soumission", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse(e.getMessage(), "500"));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(e.getMessage(), "500"));
         }
     }
 
-    /**
-     * Helper pour créer une réponse d'erreur structurée
-     */
     public static Map<String, Object> createErrorResponse(String message, String code) {
         Map<String, Object> error = new HashMap<>();
         error.put("success", false);
