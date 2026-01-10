@@ -1,10 +1,12 @@
-
 spring:
   data:
     redis:
-      repositories:
-        enabled: true
-      host: ${REDIS_HOST}
+      host: ${REDIS_HOST:localhost}  # ✅ Valeur par défaut
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD}
-
+      password: ${REDIS_PASSWORD:}
+      timeout: 60000  # ✅ Ajouter un timeout
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0

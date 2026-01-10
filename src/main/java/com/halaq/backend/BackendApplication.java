@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
 
@@ -26,6 +27,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
         JwtClaimsConfig.class,
 })
 @EnableAsync
+@EnableJpaAuditing
 public class BackendApplication {
     public static ConfigurableApplicationContext ctx;
 

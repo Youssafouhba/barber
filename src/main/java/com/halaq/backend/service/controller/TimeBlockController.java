@@ -31,6 +31,14 @@ public class TimeBlockController extends AbstractController<TimeBlock, TimeBlock
         return super.save(dto);
     }
 
+
+    @Operation(summary = "Update  a Time Block")
+    @PutMapping
+    public ResponseEntity<TimeBlockDto> update(@RequestBody TimeBlockDto dto) throws Exception {
+        return super.update(dto);
+    }
+
+
     @Operation(summary = "Finds time blocks by barber ID")
     @GetMapping("/barber/{barberId}")
     public ResponseEntity<List<TimeBlockDto>> findByBarber(@PathVariable Long barberId) {

@@ -3,7 +3,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/halaq-db?createDatabaseIfNotExist=true
     username: root
-    password: root
+    password: zyn@1987
   jpa:
     hibernate:
       ddl-auto: update # Cr?e les tables automatiquement'

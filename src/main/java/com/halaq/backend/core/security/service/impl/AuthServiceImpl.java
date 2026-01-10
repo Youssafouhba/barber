@@ -72,19 +72,15 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse login(LoginRequest request) throws Exception {
         // Find user with ALL data in ONE query
         User user = findUserByLoginWithAllData(request.getLogin());
-
         if (user == null) {
             throw new UsernameNotFoundException("User not found");
         }
-
         // Validate password
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             loginAttemptService.loginFailed(user.getUsername());
             throw new BadCredentialsException("Invalid credentials");
         }
-
         loginAttemptService.loginSucceeded(user.getUsername());
-
         // All data already loaded - no N+1 queries
         String accessToken = jwtTokenUtil.generateToken(user);
         String refreshToken = refreshTokenService.createRefreshToken(user).getToken();
@@ -93,6 +89,10 @@ public class AuthServiceImpl implements AuthService {
                 ? user.getVerificationTracker()
                 : verificationTrackerService.createTracker(user);
 
+        if(!tracker.getEmailVerified())
+            sendEmailVerification( EmailVerificationRequest.builder().email(user.getEmail()).build());
+        /*if(!tracker.getPhoneVerified())
+            otpService.sendOtp( OtpRequest.builder().phone(user.getPhone()).build());*/
         return AuthResponse.builder()
                 .success(true)
                 .message("Login successful")
@@ -100,8 +100,6 @@ public class AuthServiceImpl implements AuthService {
                 .refreshToken(refreshToken)
                 .expiresIn(jwtTokenUtil.getJwtExpirationInMs())
                 .user(mapToUserInfo(user, tracker))
-                //.isFirstLogin(isFirstLogin(user))
-                //.requiredSteps(getRequiredOnboardingSteps(user, tracker))
                 .build();
     }
 
