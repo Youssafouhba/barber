@@ -1,27 +1,77 @@
 version: '3.8'
 
 services:
-  # --- Ton Application Spring Boot ---
+  # --- Spring Boot Application ---
   backend-app:
-    build: .  # Construit l'image à partir du Dockerfile courant
+    build: .
     container_name: spring-app-prod
-    restart: always  # Redémarre automatiquement si l'app crashe ou si le serveur reboot
-    # Charge les variables depuis le fichier .env qui sera sur le serveur
+    restart: always
     env_file:
       - .env
     environment:
-      # On peut surcharger certaines variables spécifiques à docker ici si besoin
+      # FORCE Spring à démarrer sur 8085 interne
+      - SERVER_PORT=8085
+      # Dit à Nginx de rediriger le trafic vers le port 8085 du conteneur
+      - VIRTUAL_PORT=8085
+      - VIRTUAL_HOST=api.ouhba.com
+      - LETSENCRYPT_HOST=api.ouhba.com
+      # Connexions DB & Services
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/production_db
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=mon_super_mot_de_passe_mysql
       - SPRING_REDIS_HOST=redis-cache
+      - SPRING_REDIS_PORT=6379
+      # Utilise la variable du .env ou force ici le port 9000
       - MINIO_URL=http://minio-storage:9000
+    ports:
+      # Expose le port 8085 sur l'hôte (optionnel si Nginx est là, mais demandé)
+      - "8085:8085"
     depends_on:
       - mysql-db
       - redis-cache
       - minio-storage
     networks:
       - app-network
+  # --- Nginx Proxy (Gère les domaines) ---
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    container_name: nginx-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - HTTPS_METHOD=redirect
+      - HSTS=on
+      - HSTS_MAX_AGE=31536000
+      - HSTS_INCLUDE_SUBDOMAINS=on
+      - ENABLE_IPV6=true
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - nginx_certs:/etc/nginx/certs
+      - nginx_vhost:/etc/nginx/vhost.d
+      - nginx_html:/usr/share/nginx/html
+    networks:
+      - app-network
 
-  # --- Base de données MySQL ---
+  # --- Acme Companion (Gère le SSL Let's Encrypt) ---
+  acme-companion:
+    image: nginxproxy/acme-companion
+    container_name: acme-companion
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - nginx_certs:/etc/nginx/certs
+      - nginx_vhost:/etc/nginx/vhost.d
+      - nginx_html:/usr/share/nginx/html
+      - acme_sh:/etc/acme.sh
+    environment:
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+    networks:
+      - app-network
+    depends_on:
+      - nginx-proxy
+  # --- MySQL Database ---
   mysql-db:
     image: mysql:8.0
     container_name: mysql-prod
@@ -30,35 +80,43 @@ services:
       MYSQL_ROOT_PASSWORD: mon_super_mot_de_passe_mysql
       MYSQL_DATABASE: production_db
     volumes:
-      - ./mysql_data:/var/lib/mysql # Persistance des données sur la VM
+      - ./mysql_data:/var/lib/mysql
     networks:
       - app-network
 
-  # --- Cache Redis ---
+  # --- Redis Cache ---
   redis-cache:
     image: redis:alpine
     container_name: redis-prod
     restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - ./redis_data:/data
     networks:
       - app-network
 
-  # --- Stockage MinIO ---
+  # --- MinIO Storage ---
   minio-storage:
     image: minio/minio
     container_name: minio-prod
     restart: always
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000" # API S3
-      - "9001:9001" # Console Web MinIO
+      - "9000:9000"
+      - "9001:9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
-      - ./minio_data:/data # Persistance des fichiers sur la VM
+      - ./minio_data:/data
     networks:
       - app-network
 
+volumes:
+  nginx_certs:
+  nginx_vhost:
+  nginx_html:
+  acme_sh:
 networks:
   app-network:
     driver: bridge

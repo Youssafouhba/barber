@@ -5,6 +5,7 @@ target/
 !**/src/test/**/target/
 .idea/
 .env
+env
 *.iml
 .DS_Store
 help.md
