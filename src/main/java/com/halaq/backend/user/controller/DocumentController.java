@@ -101,7 +101,7 @@ public class DocumentController extends AbstractController<Document, DocumentDto
     }
 
     @Operation(summary = "upload Resum document")
-    @PostMapping(value = "/upload-Resum", consumes = "multipart/form-data")
+    @PostMapping(value = "/upload-resum", consumes = "multipart/form-data")
     public ResponseEntity<List<DocumentDto>> uploadResumeFile(@RequestParam("files") MultipartFile[] files) throws Exception {
         return ResponseEntity.ok(converter.toDto(service.uploadMultiple(files, DocumentType.RESUME)));
     }
