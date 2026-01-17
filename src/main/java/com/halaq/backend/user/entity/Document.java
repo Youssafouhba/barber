@@ -17,6 +17,7 @@ public class Document extends BaseEntity {
     private Long id;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "type", length = 50)
     private DocumentType type;
 
     private String url;
