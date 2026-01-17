@@ -56,9 +56,14 @@ public class NotificationService {
     private void sendToWebSocket(Notification notification) {
         try {
             NotificationDto dto = notificationMapper.toDto(notification);
-            // Send to /user/{userId}/queue/notifications
+
+            // ✅ .trim() est crucial car vos logs montraient "Ouhba Abdelaziz " (avec espace)
+            String recipientUsername = notification.getRecipient().getUsername().trim();
+
+            System.out.println("🔔 Envoi WS vers User: [" + recipientUsername + "]");
+
             messagingTemplate.convertAndSendToUser(
-                    notification.getRecipient().getUsername(), // Or ID depending on config, usually username for Spring Security
+                    recipientUsername,
                     "/queue/notifications",
                     dto
             );

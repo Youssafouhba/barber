@@ -50,14 +50,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // ✅ AVEC SockJS pour compatibilité avec @stomp/stompjs
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
                 .addInterceptors(stompHandshakeInterceptor)
+                .setHandshakeHandler(new CustomHandshakeHandler()) // ✅ AJOUTER CECI
                 .withSockJS();
 
         System.out.println("✅ WebSocket endpoint /ws avec SockJS activé");
     }
+
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
