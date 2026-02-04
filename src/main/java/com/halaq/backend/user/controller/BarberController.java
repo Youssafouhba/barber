@@ -199,7 +199,8 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
         }
 
         try {
-            return ResponseEntity.ok().body(converter.toDto(service.updateAvailability(authenticatedUser.getId(), statusDTO.isAvailable())));
+            Barber item = service.updateAvailability(authenticatedUser.getId(), statusDTO.isAvailable());
+            return ResponseEntity.ok().build();
         } catch (EntityNotFoundException e) {
             return ResponseEntity.status(404).build();
         }

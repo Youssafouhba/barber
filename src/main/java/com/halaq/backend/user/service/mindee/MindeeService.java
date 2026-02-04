@@ -27,7 +27,7 @@ public class MindeeService {
 
     private final MindeeClientV2 mindeeClient;
 
-    private static final String DOCTI_MODEL_ID = "03b3e10e-0083-4aa3-9ca0-02744f0008b3";
+    private static final String DOCTI_MODEL_ID = "9942e28f-ef7e-4cfc-96ed-18fcaf3ebb8f";
 
     public MindeeService(@Value("${app.mindee.api-key}") String apiKey) {
         this.mindeeClient = new MindeeClientV2(apiKey);

@@ -79,7 +79,9 @@ public class BarberServiceImpl extends AbstractServiceImpl<Barber, BarberCriteri
             throw new IllegalStateException("Aucun utilisateur n'est authentifié. Impossible de soumettre le profil.");
         }
         barber.setId(currentUser.getId());
-        return super.update(barber);
+        Barber barber1 = findById(currentUser.getId());
+        barber1.setAbout(barber.getAbout());
+        return super.update(barber1);
     }
 
     /**
@@ -134,7 +136,7 @@ public class BarberServiceImpl extends AbstractServiceImpl<Barber, BarberCriteri
             minioService.deleteFile(oldObjectName,"barber-avatars");
         }
 
-        Optional<FileUploadResult> uploadResult = minioService.uploadFile(file, "barber-avatars", uniqueName);
+            Optional<FileUploadResult> uploadResult = minioService.uploadFile(file, "barber-avatars", uniqueName);
 
         if (!uploadResult.isPresent()) {
             throw new RuntimeException("Erreur lors de l'upload du fichier");
@@ -250,7 +252,7 @@ public class BarberServiceImpl extends AbstractServiceImpl<Barber, BarberCriteri
         }
 
         // 4. Sauvegarder dans PostgreSQL
-        return super.update(barber);
+        return dao.save(barber);
     }
 
     @Override
