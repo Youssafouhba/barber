@@ -42,13 +42,11 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         RefreshToken refreshToken = RefreshToken.builder()
                 .userId(user.getId())
                 .token(refreshTokenString)
-                .token(UUID.randomUUID().toString())
                 .expiryDate(LocalDateTime.now().plusDays(refreshTokenExpirationDays))
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        RefreshToken saved = refreshTokenRepository.save(refreshToken);
-        return saved;
+        return refreshTokenRepository.save(refreshToken);
     }
 
     @Override

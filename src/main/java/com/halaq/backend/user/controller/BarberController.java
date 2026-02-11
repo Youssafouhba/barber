@@ -49,6 +49,7 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
         this.barberLiveLocationsService = barberLiveLocationsService;
         this.messagingTemplate = messagingTemplate;
     }
+
     @PostMapping("/live-location")
     public ResponseEntity<?> updateLiveLocation(
             @RequestParam double latitude,
@@ -91,9 +92,12 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
                 // Envoyer à la fois vers le topic du barbier ET le topic de la réservation
                 String barberDestination = "/topic/barber/" + barberId;
                 String bookingDestination = "/topic/booking/" + booking.getId();
+                String trackingDestination = "/topic/tracking/" + booking.getId();
 
                 messagingTemplate.convertAndSend(barberDestination, payload);
                 messagingTemplate.convertAndSend(bookingDestination, payload);
+                messagingTemplate.convertAndSend(trackingDestination, payload); // AJOUT
+
 
                 destinations.add(barberDestination);
                 destinations.add(bookingDestination);

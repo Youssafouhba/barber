@@ -50,15 +50,24 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
     public Booking create(Booking entity) {
         Booking booking = super.create(entity);
 
-
-        // Notify Barber
         // Notify Barber
         notificationService.createNotification(
                 booking.getBarber(),
-                "Nouvelle réservation reçue", // Titre plus pertinent pour le barbier
-                "Vous avez une nouvelle réservation avec " + booking.getClient().getFullName() +
-                        " le " + booking.getScheduledAt().toLocalDate().toString() +
-                        " à " + booking.getScheduledAt().toLocalTime().toString() + ".", // Ajout de la date et de l'heure pour plus de détails
+                "Nouvelle réservation reçue",
+                "Vous avez une nouvelle réservation avec " + entity.getClient().getFullName() +
+                        " le " + entity.getScheduledAt().toLocalDate().toString() +
+                        " à " + entity.getScheduledAt().toLocalTime().toString() + ".",
+                com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                "{\"bookingId\": " + booking.getId() + "}"
+        );
+
+        // Notify the client
+        notificationService.createNotification(
+                booking.getClient(),
+                "Réservation confirmée",
+                "Votre réservation avec " + entity.getBarber().getFullName() +
+                        " a été confirmée pour le " + entity.getScheduledAt().toLocalDate().toString() +
+                        " à " + entity.getScheduledAt().toLocalTime().toString() + ".",
                 com.halaq.backend.notification.enums.NotificationType.IN_APP,
                 "{\"bookingId\": " + booking.getId() + "}"
         );

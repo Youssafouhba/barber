@@ -1,111 +1,121 @@
 package com.halaq.backend.core.config;
 
+import java.util.List;
+import java.util.Map;
+
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.MessageChannel;
-import org.springframework.messaging.simp.SimpMessageType;
+import org.springframework.http.server.ServerHttpRequest;
+import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.http.server.ServletServerHttpRequest;
+import org.springframework.messaging.converter.DefaultContentTypeResolver;
+import org.springframework.messaging.converter.MappingJackson2MessageConverter;
+import org.springframework.messaging.converter.MessageConverter;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.messaging.support.ChannelInterceptor;
-import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
+import org.springframework.util.MimeTypeUtils;
+import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.web.socket.server.HandshakeInterceptor;
+
 @Configuration
 @EnableWebSocketMessageBroker
-@EnableScheduling
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    @Autowired
-    private StompHandshakeInterceptor stompHandshakeInterceptor;
+    @Value("${app.cors.allowed-origins}")
+    private String corsAllowedOrigins;
 
-    @Bean(name = "wsHeartbeatScheduler")
-    public ThreadPoolTaskScheduler wsHeartbeatScheduler() {
-        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(1);
-        scheduler.setThreadNamePrefix("ws-heartbeat-");
-        scheduler.setAwaitTerminationSeconds(60);
-        scheduler.setWaitForTasksToCompleteOnShutdown(true);
-        scheduler.initialize();
-        System.out.println("✅ TaskScheduler 'wsHeartbeatScheduler' créé");
-        return scheduler;
+    @Autowired
+    private WebSocketAuthInterceptor webSocketAuthInterceptor;
+
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(webSocketAuthInterceptor);
     }
+
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // ✅ SimpleBroker avec heartbeat
-        config.enableSimpleBroker("/topic", "/queue")
-                .setHeartbeatValue(new long[]{25000, 25000})
-                .setTaskScheduler(wsHeartbeatScheduler());
-
+        config.enableSimpleBroker("/topic", "/queue", "/user", "/products", "/stocks", "/tradeCustomers");
         config.setApplicationDestinationPrefixes("/app");
         config.setUserDestinationPrefix("/user");
-
-        System.out.println("✅ MessageBroker configuré");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        String[] origins = corsAllowedOrigins.split(",");
+
+        // Add SockJS endpoints
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")
-                .addInterceptors(stompHandshakeInterceptor)
-                .setHandshakeHandler(new CustomHandshakeHandler()) // ✅ AJOUTER CECI
-                .withSockJS();
+                .setAllowedOrigins(origins)
+                .withSockJS()
+                .setInterceptors(httpSessionHandshakeInterceptor());
 
-        System.out.println("✅ WebSocket endpoint /ws avec SockJS activé");
+        registry.addEndpoint("/updates")
+                .setAllowedOrigins(origins)
+                .withSockJS()
+                .setInterceptors(httpSessionHandshakeInterceptor());
+
+        registry.addEndpoint("/notifications")
+                .setAllowedOrigins(origins)
+                .withSockJS()
+                .setInterceptors(httpSessionHandshakeInterceptor());
     }
 
-
-    @Override
-    public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(new ChannelInterceptor() {
+    @Bean
+    public HandshakeInterceptor httpSessionHandshakeInterceptor() {
+        return new HandshakeInterceptor() {
             @Override
-            public Message<?> preSend(Message<?> message, MessageChannel channel) {
-                // ✅ CORRECTION: Récupérer comme SimpMessageType (pas String)
-                SimpMessageType messageType = (SimpMessageType) message.getHeaders().get("simpMessageType");
-                String sessionId = (String) message.getHeaders().get("simpSessionId");
+            public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
+                                           WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
+                if (request instanceof ServletServerHttpRequest) {
+                    ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
+                    HttpServletRequest httpServletRequest = servletRequest.getServletRequest();
 
-                if (messageType != null) {
-                    System.out.println("📨 [INBOUND] " + messageType.name() + " | Session: " + sessionId);
-
-                    if (SimpMessageType.CONNECT.equals(messageType)) {
-                        System.out.println("   └─ Client connecting...");
-                    } else if (SimpMessageType.SUBSCRIBE.equals(messageType)) {
-                        String destination = (String) message.getHeaders().get("simpDestination");
-                        System.out.println("   └─ Subscribing to: " + destination);
-                    } else if (SimpMessageType.DISCONNECT.equals(messageType)) {
-                        System.out.println("   └─ Client disconnecting");
+                    // Extract token from query parameter
+                    String token = httpServletRequest.getParameter("token");
+                    if (token != null) {
+                        attributes.put("token", token);
                     }
                 }
-                return message;
+                return true;
             }
-        });
+
+            @Override
+            public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
+                                       WebSocketHandler wsHandler, Exception exception) {
+                // Post-handshake logic if needed
+            }
+        };
     }
 
     @Override
-    public void configureClientOutboundChannel(ChannelRegistration registration) {
-        registration.interceptors(new ChannelInterceptor() {
-            @Override
-            public Message<?> preSend(Message<?> message, MessageChannel channel) {
-                // ✅ CORRECTION: Récupérer comme SimpMessageType (pas String)
-                SimpMessageType messageType = (SimpMessageType) message.getHeaders().get("simpMessageType");
+    public boolean configureMessageConverters(List<MessageConverter> messageConverters) {
+        DefaultContentTypeResolver resolver = new DefaultContentTypeResolver();
+        resolver.setDefaultMimeType(MimeTypeUtils.APPLICATION_JSON);
+        MappingJackson2MessageConverter converter = new MappingJackson2MessageConverter();
+        converter.setObjectMapper(new ObjectMapper());
+        converter.setContentTypeResolver(resolver);
+        messageConverters.add(converter);
+        return false;
+    }
 
-                if (messageType != null) {
-                    if (SimpMessageType.CONNECT_ACK.equals(messageType)) {
-                        System.out.println("📤 [OUTBOUND] CONNECTED ✅ Client connecté!");
-                    } else if (SimpMessageType.MESSAGE.equals(messageType)) {
-                        String destination = (String) message.getHeaders().get("simpDestination");
-                        System.out.println("📤 [OUTBOUND] MESSAGE → " + destination);
-                    } else if (SimpMessageType.DISCONNECT_ACK.equals(messageType)) {
-                        System.out.println("📤 [OUTBOUND] DISCONNECT_ACK");
-                    }
-                }
-                return message;
-            }
-        });
+    /**
+     * Configure WebSocket security
+     */
+    @Bean
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        return (web) -> web.ignoring()
+                .requestMatchers("/ws/**", "/updates/**", "/notifications/**")
+                .requestMatchers("/topic/**", "/queue/**", "/user/**")
+                .requestMatchers("/app/**");
     }
 }

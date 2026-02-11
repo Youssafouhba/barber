@@ -67,7 +67,7 @@ public class AuthServiceImpl implements AuthService {
 
 
     // OPTIMIZED: Single query with all associations
-    @Transactional(readOnly = true)
+    @Transactional
     @Override
     public AuthResponse login(LoginRequest request) throws Exception {
         // Find user with ALL data in ONE query
@@ -89,8 +89,8 @@ public class AuthServiceImpl implements AuthService {
                 ? user.getVerificationTracker()
                 : verificationTrackerService.createTracker(user);
 
-        if(!tracker.getEmailVerified())
-            sendEmailVerification( EmailVerificationRequest.builder().email(user.getEmail()).build());
+     /*   if(!tracker.getEmailVerified())
+            sendEmailVerification( EmailVerificationRequest.builder().email(user.getEmail()).build());*/
         /*if(!tracker.getPhoneVerified())
             otpService.sendOtp( OtpRequest.builder().phone(user.getPhone()).build());*/
         return AuthResponse.builder()
@@ -110,7 +110,7 @@ public class AuthServiceImpl implements AuthService {
         return userService.findByUsernameOrEmailOrPhone(login);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     @Override
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         RotatedTokenInfo rotatedTokenInfo = refreshTokenService.rotateRefreshToken(request.getRefreshToken());

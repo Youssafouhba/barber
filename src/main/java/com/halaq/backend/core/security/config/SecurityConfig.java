@@ -95,7 +95,8 @@ public class SecurityConfig {
                 auth.requestMatchers(roleMapping.getPaths().toArray(new String[0]))
                         .hasAnyAuthority(roleMapping.getAuthority()); // Utiliser hasAnyAuthority pour plus de flexibilité
             }
-            auth.requestMatchers("/ws/**").permitAll();
+            auth.requestMatchers("/ws/**", "/updates/**", "/notifications/**").permitAll();
+            auth.requestMatchers("/topic/**", "/queue/**", "/user/**").permitAll();
 
             // Toutes les autres requêtes doivent être authentifiées
             auth.anyRequest().authenticated();

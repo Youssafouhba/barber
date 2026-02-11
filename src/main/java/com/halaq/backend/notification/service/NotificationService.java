@@ -9,8 +9,11 @@ import com.halaq.backend.notification.mapper.NotificationMapper;
 import com.halaq.backend.notification.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,8 +26,9 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final NotificationMapper notificationMapper;
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
-    private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     @Transactional
     public NotificationDto createNotification(User recipient, String title, String message, NotificationType type, String metadata) {
@@ -38,38 +42,68 @@ public class NotificationService {
         notification.setCreatedAt(LocalDateTime.now());
 
         notification = notificationRepository.save(notification);
-        
-        // Send via WebSocket for all types (as a real-time update)
-        sendToWebSocket(notification);
 
         if (type == NotificationType.IN_APP) {
             notification.setStatus(NotificationStatus.SENT);
             notification.setSentAt(LocalDateTime.now());
         } else {
-             // Placeholder for external sending logic
-             sendExternalNotification(notification);
+            sendExternalNotification(notification);
         }
+        NotificationDto dto = notificationMapper.toDto(notificationRepository.save(notification));
+        Long userId = recipient.getId();
 
-        return notificationMapper.toDto(notificationRepository.save(notification));
+        messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/notifications", dto);
+        return dto;
+    }
+
+    // 🔥 NOUVELLE MÉTHODE : Envoi différé
+    @Async
+    public void scheduleWebSocketNotification(Notification notification, long delayMillis) {
+        try {
+            log.info("📅 Scheduling WebSocket notification in {}ms for user: {}",
+                    delayMillis, notification.getRecipient().getUsername());
+
+            Thread.sleep(delayMillis);
+
+            sendToWebSocket(notification);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Notification scheduling interrupted", e);
+        }
     }
 
     private void sendToWebSocket(Notification notification) {
         try {
             NotificationDto dto = notificationMapper.toDto(notification);
-
-            // ✅ .trim() est crucial car vos logs montraient "Ouhba Abdelaziz " (avec espace)
             String recipientUsername = notification.getRecipient().getUsername().trim();
 
-            System.out.println("🔔 Envoi WS vers User: [" + recipientUsername + "]");
+            log.info("🔔 Envoi WS vers User: [{}]", recipientUsername);
+            log.info("🔔 Destination: /user/{}/queue/notifications", recipientUsername);
 
-            messagingTemplate.convertAndSendToUser(
-                    recipientUsername,
-                    "/queue/notifications",
+            // 🔥 VÉRIFIEZ SI LE USER EST CONNECTÉ
+            String destination = "/user/" + recipientUsername + "/queue/notifications";
+
+            messagingTemplate.convertAndSend(
+                    destination,
                     dto
             );
+
+            log.info("✅ Notification envoyée via WebSocket à {}", destination);
+
         } catch (Exception e) {
-            log.error("Failed to send WebSocket notification", e);
+            log.error("❌ Failed to send WebSocket notification", e);
+            // 🔥 OPTION: Stocker pour re-tentative plus tard
+            notification.setStatus(NotificationStatus.FAILED);
+            notificationRepository.save(notification);
         }
+    }
+
+    // 🔥 OPTIONNEL: Méthode pour vérifier si un user est connecté
+    public boolean isUserConnected(String username) {
+        // Cette méthode nécessite d'accéder à la session registry
+        // Voir l'étape 2 ci-dessous
+        return true; // Temporaire
     }
 
     private void sendExternalNotification(Notification notification) {

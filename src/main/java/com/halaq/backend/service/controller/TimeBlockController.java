@@ -43,7 +43,9 @@ public class TimeBlockController extends AbstractController<TimeBlock, TimeBlock
     @GetMapping("/barber/{barberId}")
     public ResponseEntity<List<TimeBlockDto>> findByBarber(@PathVariable Long barberId) {
         List<TimeBlock> list = service.findByBarberId(barberId);
-        return ResponseEntity.ok(converter.toDto(list));
+        List<TimeBlockDto> dto = converter.toDto(list);
+
+        return ResponseEntity.ok(dto);
     }
 
     @Operation(summary = "Finds time blocks by barber ID and date range")
