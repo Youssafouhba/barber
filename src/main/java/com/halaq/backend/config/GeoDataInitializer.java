@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Initialise les données géographiques dans Redis au démarrage de l'application.
@@ -22,6 +23,7 @@ public class GeoDataInitializer {
      * Exécuté automatiquement après le démarrage de l'application.
      */
     @EventListener(ApplicationReadyEvent.class)
+    @Transactional(readOnly = true)
     public void initializeGeoData() {
         log.info("=== Initialisation des données géographiques ===");
         try {

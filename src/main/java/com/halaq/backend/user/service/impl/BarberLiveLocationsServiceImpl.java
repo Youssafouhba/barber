@@ -41,12 +41,23 @@ public class BarberLiveLocationsServiceImpl implements BarberLiveLocationsServic
     /**
      * Initialise ou met à jour les données géographiques des zones de service dans Redis.
      * À appeler au démarrage de l'app ou lors d'une modification de zone.
+     *
+     * Note: Les zones sont chargées avec les barbiers pour éviter
+     * LazyInitializationException en dehors de la session Hibernate.
      */
     @Override
     public void initializeServiceZonesInRedis() {
         try {
             // Récupérer toutes les zones de service
             List<ServiceZone> allZones = serviceZoneRepository.findAll();
+
+            // Force le chargement des barbiers DANS la session
+            for (ServiceZone zone : allZones) {
+                // Accéder à la relation pour la forcer à charger immédiatement
+                if (zone.getBarber() != null) {
+                    zone.getBarber().getId(); // Minimal access to initialize
+                }
+            }
 
             if (allZones.isEmpty()) {
                 log.warn("Aucune zone de service trouvée dans la base de données");
@@ -69,9 +80,10 @@ public class BarberLiveLocationsServiceImpl implements BarberLiveLocationsServic
             log.error("Erreur lors de l'initialisation des zones dans Redis", e);
         }
     }
-
     /**
      * Ajoute ou met à jour une zone de service dans Redis.
+    public void addZoneToRedis(ServiceZone zone) {
+
      */
     public void addZoneToRedis(ServiceZone zone) {
         try {
