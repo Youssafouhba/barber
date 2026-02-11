@@ -3,6 +3,7 @@ package com.halaq.backend.user.service.impl;
 import com.halaq.backend.user.entity.ServiceZone;
 import com.halaq.backend.user.repository.ServiceZoneRepository;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.geo.Circle;
 import org.springframework.data.geo.Distance;
 import org.springframework.data.geo.GeoResult;
@@ -22,7 +23,7 @@ public class BarberLiveLocationsServiceImpl implements BarberLiveLocationsServic
 
     private final ServiceZoneRepository serviceZoneRepository;
 
-    private final Logger log = null;
+    private static final Logger log = LoggerFactory.getLogger(BarberLiveLocationsServiceImpl.class);
 
     private final StringRedisTemplate redisTemplate;
 
