@@ -1,5 +1,8 @@
 package com.halaq.backend.user.service.impl;
 
+import com.halaq.backend.user.entity.ServiceZone;
+import com.halaq.backend.user.repository.ServiceZoneRepository;
+import org.slf4j.Logger;
 import org.springframework.data.geo.Circle;
 import org.springframework.data.geo.Distance;
 import org.springframework.data.geo.GeoResult;
@@ -11,19 +14,261 @@ import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+
 
 @Service
 public class BarberLiveLocationsServiceImpl implements BarberLiveLocationsService {
+
+    private final ServiceZoneRepository serviceZoneRepository;
+
+    private final Logger log = null;
 
     private final StringRedisTemplate redisTemplate;
 
     // Le nom de la clé dans Redis qui contiendra toutes les positions
     private static final String BARBER_LOCATIONS_KEY = "barbers:live_locations";
+    private static final String ZONE_GEO_KEY = "service_zones:geo"; // Clé principale pour toutes les zones
+    private static final String ZONE_DATA_KEY = "service_zones:data"; // Hash pour stocker les détails
+    private static final String BARBER_ZONES_KEY = "barber:zones"; // Ensemble des zones par barbier
 
-    public BarberLiveLocationsServiceImpl(StringRedisTemplate redisTemplate) {
+    public BarberLiveLocationsServiceImpl(ServiceZoneRepository serviceZoneRepository, StringRedisTemplate redisTemplate) {
+        this.serviceZoneRepository = serviceZoneRepository;
         this.redisTemplate = redisTemplate;
+    }
+
+    /**
+     * Initialise ou met à jour les données géographiques des zones de service dans Redis.
+     * À appeler au démarrage de l'app ou lors d'une modification de zone.
+     */
+    @Override
+    public void initializeServiceZonesInRedis() {
+        try {
+            // Récupérer toutes les zones de service
+            List<ServiceZone> allZones = serviceZoneRepository.findAll();
+
+            if (allZones.isEmpty()) {
+                log.warn("Aucune zone de service trouvée dans la base de données");
+                return;
+            }
+
+            // Nettoyer les anciennes données
+            redisTemplate.delete(ZONE_GEO_KEY);
+            redisTemplate.delete(ZONE_DATA_KEY);
+            redisTemplate.delete(BARBER_ZONES_KEY);
+
+            // Ajouter chaque zone à Redis
+            for (ServiceZone zone : allZones) {
+                addZoneToRedis(zone);
+            }
+
+            log.info("Initialisation Redis terminée avec {} zones de service", allZones.size());
+
+        } catch (Exception e) {
+            log.error("Erreur lors de l'initialisation des zones dans Redis", e);
+        }
+    }
+
+    /**
+     * Ajoute ou met à jour une zone de service dans Redis.
+     */
+    public void addZoneToRedis(ServiceZone zone) {
+        try {
+            if (zone.getLatitude() == null || zone.getLongitude() == null) {
+                log.warn("Zone {} n'a pas de coordonnées", zone.getName());
+                return;
+            }
+
+            // Créer un ID unique pour la zone (barber_id + zone_id)
+            String zoneKey = generateZoneKey(zone);
+
+            // Ajouter les coordonnées géographiques
+            Point point = new Point(zone.getLongitude(), zone.getLatitude());
+            redisTemplate.opsForGeo().add(ZONE_GEO_KEY, point, zoneKey);
+
+            // Stocker les détails de la zone pour récupération ultérieure
+            Map<String, String> zoneData = new HashMap<>();
+            zoneData.put("id", zone.getId().toString());
+            zoneData.put("name", zone.getName());
+            zoneData.put("address", zone.getAddress() != null ? zone.getAddress() : "");
+            zoneData.put("latitude", zone.getLatitude().toString());
+            zoneData.put("longitude", zone.getLongitude().toString());
+            zoneData.put("barber_id", zone.getBarber().getId().toString());
+            zoneData.put("barber_name", zone.getBarber().getUsername());
+
+            redisTemplate.opsForHash().putAll(ZONE_DATA_KEY + ":" + zoneKey, zoneData);
+
+            // Mapper zone -> barber (utile pour filtrer par barbier)
+            redisTemplate.opsForSet().add(
+                    BARBER_ZONES_KEY + ":" + zone.getBarber().getId(),
+                    zoneKey
+            );
+
+            log.debug("Zone {} ajoutée à Redis pour le barbier {}", zone.getName(), zone.getBarber().getUsername());
+
+        } catch (Exception e) {
+            log.error("Erreur lors de l'ajout de la zone à Redis", e);
+        }
+    }
+
+    /**
+     * Supprime une zone de service de Redis.
+     */
+    public void removeZoneFromRedis(ServiceZone zone) {
+        try {
+            String zoneKey = generateZoneKey(zone);
+
+            redisTemplate.opsForGeo().remove(ZONE_GEO_KEY, zoneKey);
+            redisTemplate.delete(ZONE_DATA_KEY + ":" + zoneKey);
+            redisTemplate.opsForSet().remove(
+                    BARBER_ZONES_KEY + ":" + zone.getBarber().getId(),
+                    zoneKey
+            );
+
+            log.debug("Zone {} supprimée de Redis", zone.getName());
+
+        } catch (Exception e) {
+            log.error("Erreur lors de la suppression de la zone de Redis", e);
+        }
+    }
+
+
+    /**
+     * Trouve les IDs des barbiers opérant dans des zones proches de la position donnée.
+     *
+     * @param userLat    Latitude de l'utilisateur
+     * @param userLon    Longitude de l'utilisateur
+     * @param radiusKm   Rayon de recherche en kilomètres
+     * @return Liste des IDs des barbiers ayant une zone de service dans le rayon
+     */
+    @Override
+    public List<Long> findNearbyBarberIdsByServiceZones(double userLat, double userLon, double radiusKm) {
+        try {
+            // Créer le cercle de recherche
+            Point userLocation = new Point(userLon, userLat);
+            Distance radius = new Distance(radiusKm, Metrics.KILOMETERS);
+            Circle circle = new Circle(userLocation, radius);
+
+            // Arguments de la commande GEOSEARCH
+            RedisGeoCommands.GeoRadiusCommandArgs args = RedisGeoCommands.GeoRadiusCommandArgs
+                    .newGeoRadiusArgs()
+                    .includeDistance()
+                    .includeCoordinates()
+                    .sortAscending();
+
+            // Exécuter la recherche sur les zones de service
+            GeoResults<RedisGeoCommands.GeoLocation<String>> results =
+                    redisTemplate.opsForGeo().radius(ZONE_GEO_KEY, circle, args);
+
+            Set<Long> uniqueBarberIds = new HashSet<>();
+
+            if (results != null) {
+                for (GeoResult<RedisGeoCommands.GeoLocation<String>> result : results) {
+                    String zoneKey = result.getContent().getName();
+
+                    // Récupérer l'ID du barbier depuis les données de la zone
+                    Map<Object, Object> zoneDataRaw = redisTemplate.opsForHash().entries(ZONE_DATA_KEY + ":" + zoneKey);
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> zoneData = (Map<String, String>) (Map<?, ?>) zoneDataRaw;
+
+                    if (zoneData != null && zoneData.containsKey("barber_id")) {
+                        Long barberId = Long.parseLong(zoneData.get("barber_id"));
+                        uniqueBarberIds.add(barberId);
+
+                        double distance = result.getDistance().getValue();
+                        log.debug("Zone trouvée: {} (distance: {:.2f}km) - Barbier: {}",
+                                zoneData.get("name"), distance, zoneData.get("barber_name"));
+                    }
+                }
+            }
+
+            log.info("Trouvé {} barbiers avec des zones de service à proximité", uniqueBarberIds.size());
+            return new ArrayList<>(uniqueBarberIds);
+
+        } catch (Exception e) {
+            log.error("Erreur lors de la recherche des barbiers par zones de service", e);
+            return Collections.emptyList();
+        }
+    }
+
+
+    /**
+     * Trouve les zones de service proches avec tous leurs détails.
+     *
+     * @return Liste des DTO contenant les détails des zones trouvées
+     */
+    public List<ServiceZone> findNearbyServiceZonesWithDetails(double userLat, double userLon, double radiusKm) {
+        try {
+            Point userLocation = new Point(userLon, userLat);
+            Distance radius = new Distance(radiusKm, Metrics.KILOMETERS);
+            Circle circle = new Circle(userLocation, radius);
+
+            RedisGeoCommands.GeoRadiusCommandArgs args = RedisGeoCommands.GeoRadiusCommandArgs
+                    .newGeoRadiusArgs()
+                    .includeDistance()
+                    .sortAscending();
+
+            GeoResults<RedisGeoCommands.GeoLocation<String>> results =
+                    redisTemplate.opsForGeo().radius(ZONE_GEO_KEY, circle, args);
+
+            List<ServiceZone> zones = new ArrayList<>();
+
+            if (results != null) {
+                for (GeoResult<RedisGeoCommands.GeoLocation<String>> result : results) {
+                    String zoneKey = result.getContent().getName();
+                    double distance = result.getDistance().getValue();
+
+                    Map<Object, Object> zoneDataRaw = redisTemplate.opsForHash().entries(ZONE_DATA_KEY + ":" + zoneKey);
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> zoneData = (Map<String, String>) (Map<?, ?>) zoneDataRaw;
+
+                    if (zoneData != null) {
+                        ServiceZone dto = new ServiceZone(
+                                Long.parseLong(zoneData.get("id")),
+                                zoneData.get("name"),
+                                zoneData.get("address"),
+                                Double.parseDouble(zoneData.get("latitude")),
+                                Double.parseDouble(zoneData.get("longitude")),
+                                Long.parseLong(zoneData.get("barber_id")),
+                                zoneData.get("barber_name"),
+                                distance
+                        );
+                        zones.add(dto);
+                    }
+                }
+            }
+
+            return zones;
+
+        } catch (Exception e) {
+            log.error("Erreur lors de la récupération des détails des zones", e);
+            return Collections.emptyList();
+        }
+    }
+
+
+    /**
+     * Met en cache la zone dans Redis (appeler après une modification en DB).
+     */
+    public void refreshZoneInRedis(Long zoneId) {
+        try {
+            ServiceZone zone = serviceZoneRepository.findById(zoneId)
+                    .orElseThrow(() -> new RuntimeException("Zone non trouvée"));
+
+            removeZoneFromRedis(zone);
+            addZoneToRedis(zone);
+
+            log.info("Zone {} rafraîchie dans Redis", zone.getName());
+        } catch (Exception e) {
+            log.error("Erreur lors du rafraîchissement de la zone {}", zoneId, e);
+        }
+    }
+
+    /**
+     * Génère une clé unique pour une zone de service.
+     */
+    private String generateZoneKey(ServiceZone zone) {
+        return "zone:" + zone.getBarber().getId() + ":" + zone.getId();
     }
 
     /**

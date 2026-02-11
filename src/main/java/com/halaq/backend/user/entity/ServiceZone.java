@@ -36,4 +36,13 @@ public class ServiceZone extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "barber_id", nullable = false)
     private Barber barber;
+
+    public ServiceZone(long id, String name, String address, double latitude, double longitude, long barberId, String barberName, double distance) {
+
+    }
+
+
+    public ServiceZone() {
+
+    }
 }

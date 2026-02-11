@@ -139,6 +139,7 @@ public class BarberController extends AbstractController<Barber, BarberDto, Barb
 
             // 1. Redis
             List<Long> nearbyBarberIds = barberLiveLocationsService.findNearbyBarberIds(latitude, longitude, radius);
+            nearbyBarberIds.addAll(barberLiveLocationsService.findNearbyBarberIdsByServiceZones(latitude, longitude, radius));
             System.out.println("Redis a trouvé " + nearbyBarberIds.size() + " barbiers. IDs: " + nearbyBarberIds);
 
             if (nearbyBarberIds.isEmpty()) {
