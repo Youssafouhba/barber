@@ -11,10 +11,10 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 
-@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
+@Mapper(componentModel = "spring")
 public interface TimeBlockMapper extends BaseMapper<TimeBlock, TimeBlockDto> {
 
     @Mapping(target = "barber", ignore = true)
-    BarberDto toDto(Barber entity, @Context CycleAvoidingMappingContext context);
+    TimeBlockDto toDto(TimeBlock entity, @Context CycleAvoidingMappingContext context);
 
 }
