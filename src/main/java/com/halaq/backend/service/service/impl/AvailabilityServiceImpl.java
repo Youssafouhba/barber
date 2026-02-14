@@ -10,6 +10,7 @@ import com.halaq.backend.core.service.AbstractServiceImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -44,6 +45,20 @@ public class AvailabilityServiceImpl extends AbstractServiceImpl<Availability, A
         return dao.findByBarberId(barberId);
     }
 
+    @Transactional // CRITIQUE : Tout ou rien. Si saveAll échoue, le delete est annulé.
+    public List<Availability> replaceAvailabilities(List<Availability> newAvailabilities) {
+        if (newAvailabilities.isEmpty()) return new ArrayList<>();
+
+        // 1. Récupérer l'ID du barbier concerné (depuis le premier élément de la liste)
+        // Assurez-vous que le DTO/Item contient bien l'objet Barber ou son ID
+        Long barberId = newAvailabilities.get(0).getBarber().getId();
+
+        // 2. Supprimer les anciennes disponibilités de CE barbier
+        dao.deleteByBarberId(barberId);
+
+        // 3. Sauvegarder la nouvelle liste
+        return dao.saveAll(newAvailabilities);
+    }
     @Override
     public void configure() {
         super.configure(Availability.class, AvailabilitySpecification.class);

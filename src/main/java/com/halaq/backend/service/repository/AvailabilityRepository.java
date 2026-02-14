@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface AvailabilityRepository extends AbstractRepository<Availability, Long> {
     List<Availability> findByBarberId(Long barberId);
+
+    void deleteByBarberId(Long barberId);
 }

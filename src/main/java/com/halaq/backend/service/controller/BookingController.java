@@ -165,4 +165,25 @@ public class BookingController extends AbstractController<Booking, BookingDto, B
         Booking completedBooking = service.completeBooking(id);
         return ResponseEntity.ok(converter.toDto(completedBooking));
     }
+
+    @Operation(summary = "Barber starts trip to client location")
+    @PostMapping("/{id}/start-trip")
+    public ResponseEntity<BookingDto> startTrip(@PathVariable Long id) {
+        Booking booking = service.startTrip(id);
+        return ResponseEntity.ok(converter.toDto(booking));
+    }
+
+    @Operation(summary = "Barber marks arrival at client location")
+    @PostMapping("/{id}/mark-arrived")
+    public ResponseEntity<BookingDto> markArrived(@PathVariable Long id) {
+        Booking booking = service.markArrived(id);
+        return ResponseEntity.ok(converter.toDto(booking));
+    }
+
+    @Operation(summary = "Barber starts the service")
+    @PostMapping("/{id}/start-service")
+    public ResponseEntity<BookingDto> startService(@PathVariable Long id) {
+        Booking booking = service.startService(id);
+        return ResponseEntity.ok(converter.toDto(booking));
+    }
 }

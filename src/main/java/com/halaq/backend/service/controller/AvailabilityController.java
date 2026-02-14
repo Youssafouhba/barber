@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Tag(name = "Barber Availability")
 @RestController
@@ -45,6 +46,29 @@ public class AvailabilityController extends AbstractController<Availability, Ava
             response.add(converter.toDto(service.create(converter.toItem(dto))));
         }
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Replace all availabilities for a barber (Overwrite)")
+    @PutMapping("/replace") // PUT est plus logique pour un remplacement total
+    public ResponseEntity<List<AvailabilityDto>> replaceMultiple(@RequestBody List<AvailabilityDto> dtos) throws Exception {
+        if (dtos == null || dtos.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        }
+
+        // 1. Convertir toute la liste d'un coup
+        List<Availability> items = dtos.stream()
+                .map(converter::toItem)
+                .collect(Collectors.toList());
+
+        // 2. Appeler le service pour "écraser et sauvegarder"
+        List<Availability> savedItems = service.replaceAvailabilities(items);
+
+        // 3. Convertir le résultat en DTO
+        List<AvailabilityDto> resultDtos = savedItems.stream()
+                .map(converter::toDto)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(resultDtos);
     }
 
     @Operation(summary = "Update an availability slot")

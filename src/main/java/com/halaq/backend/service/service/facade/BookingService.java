@@ -26,8 +26,6 @@ public interface BookingService extends IService<Booking, BookingCriteria> {
     List<LocalDateTime> calculateAvailableSlots(AvailableSlotRequest request);
 
     @Transactional
-    // J'ai renommé l'ancienne méthode `confirmBooking` en `cancelBooking` pour éviter le conflit
-    // avec la nouvelle logique d'acceptation/rejet par le coiffeur.
     Booking cancelBooking(Long bookingId);
 
     List<Booking> findByClientId(Long clientId);
@@ -37,4 +35,11 @@ public interface BookingService extends IService<Booking, BookingCriteria> {
     List<Booking> findByBarberId(Long barberId);
 
     Booking confirmBooking(Long id);
+
+    Booking startTrip(Long bookingId);
+
+    Booking markArrived(Long bookingId);
+
+    Booking startService(Long bookingId);
+
 }

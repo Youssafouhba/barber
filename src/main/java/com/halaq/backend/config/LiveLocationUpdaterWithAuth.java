@@ -10,8 +10,8 @@ import java.util.Random;
 
 public class LiveLocationUpdaterWithAuth {
 
-    private static final String BASE_URL = "https://b48e-105-71-147-247.ngrok-free.app/api/v1/barbers/live-location";
-    private static final String AUTH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlcyI6WyJST0xFX0JBUkJFUiJdLCJpZCI6MTAzLCJlbWFpbCI6Im91aGJhNTlAZ21haWwuY29tIiwiZW5hYmxlZCI6dHJ1ZSwidXNlcm5hbWUiOiJPdWhiYSB5b3Vzc2VmIiwic3ViIjoiT3VoYmEgeW91c3NlZiIsImlhdCI6MTc3MDQxODQ5OSwiZXhwIjoxNzcwNDIyMDk5fQ.O-b8QGSLCUzDwx3gS02Pw3mq0bChDVsED_guTBiVRzNi_GtKaVSI2PYSCiYXI5WvU-vN0ov-5tdJTapxIiksKA";
+    private static final String BASE_URL = "https://7769-105-71-16-25.ngrok-free.app/api/v1/barbers/live-location";
+    private static final String AUTH_TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlcyI6WyJST0xFX0JBUkJFUiJdLCJpZCI6MjAyLCJlbWFpbCI6Im91aGJhQGdtYWlsLmNvbSIsImVuYWJsZWQiOnRydWUsInVzZXJuYW1lIjoiT3VoYmEgWW91c3NlZiAiLCJzdWIiOiJPdWhiYSBZb3Vzc2VmICIsImlhdCI6MTc3MTA5MzMxMCwiZXhwIjoxNzcxMDk2OTEwfQ._RmXu-QXDvzEgi1JOwv173WYfimf5BX0uSZ_qVGtsc5xtuO3rDWb6Lnou1blwU6L_-9qtCrmf7k2Fcv2O6XPoA";
     private static final int UPDATE_INTERVAL_MS = 30000;
 
     private static double currentLat = 34.0209;

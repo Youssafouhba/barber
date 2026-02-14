@@ -23,7 +23,7 @@ public interface BarberRepository extends AbstractRepository<Barber, Long> {
     // ✅ Trouve toutes les réservations actives d'un barbier
     // (statuts qui nécessitent le suivi en temps réel)
     @Query("SELECT b FROM Booking b WHERE b.barber.id = :barberId " +
-            "AND b.status IN (com.halaq.backend.shared.BookingStatus.CONFIRMED) " )
+            "AND b.status IN (com.halaq.backend.shared.BookingStatus.CONFIRMED)")
     List<Booking> findActiveBookingsByBarberId(@Param("barberId") Long barberId);
 
 }

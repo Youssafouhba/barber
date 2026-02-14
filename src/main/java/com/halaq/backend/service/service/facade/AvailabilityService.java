@@ -14,4 +14,6 @@ public interface AvailabilityService extends IService<Availability, Availability
      * @return A list of availability slots.
      */
     List<Availability> findByBarberId(Long barberId);
+
+    List<Availability> replaceAvailabilities(List<Availability> items);
 }

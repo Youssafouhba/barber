@@ -397,29 +397,6 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
 
 
 
-    @Override
-    @Transactional
-    // J'ai renommé l'ancienne méthode `confirmBooking` en `cancelBooking` pour éviter le conflit
-    // avec la nouvelle logique d'acceptation/rejet par le coiffeur.
-    public Booking cancelBooking(Long bookingId) {
-        Booking booking = findById(bookingId);
-        // Logic to check if cancellation is allowed (e.g., not too close to appointment time)
-        if (booking != null) {
-            booking.setStatus(BookingStatus.CANCELED);
-            
-            // Notify Barber
-            notificationService.createNotification(
-                    booking.getBarber(),
-                    "Booking Canceled",
-                    "Booking with " + booking.getClient().getFullName() + " has been canceled.",
-                    com.halaq.backend.notification.enums.NotificationType.IN_APP,
-                    "{\"bookingId\": " + booking.getId() + "}"
-            );
-            
-            return dao.save(booking);
-        }
-        return null;
-    }
 
     // L'ancienne méthode confirmBooking est remplacée par acceptBooking/rejectBooking et n'est plus nécessaire ici.
 
@@ -444,6 +421,30 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
         return dao.findByBarberId(barberId);
     }
 
+
+    @Override
+    @Transactional
+    public Booking cancelBooking(Long bookingId) {
+        Booking booking = findById(bookingId);
+        // Logic to check if cancellation is allowed (e.g., not too close to appointment time)
+        if (booking != null) {
+            booking.setStatus(BookingStatus.CANCELED);
+
+            // Notify Barber
+            notificationService.createNotification(
+                    booking.getBarber(),
+                    "Booking Canceled",
+                    "Booking with " + booking.getClient().getFullName() + " has been canceled.",
+                    com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                    "{\"bookingId\": " + booking.getId() + "}"
+            );
+
+            return dao.save(booking);
+        }
+        return null;
+    }
+
+
     @Override
     public Booking confirmBooking(Long id) {
         Booking booking = findById(id);
@@ -462,5 +463,98 @@ public class BookingServiceImpl extends AbstractServiceImpl<Booking, BookingCrit
             return dao.save(booking);
         }
         return null;
+    }
+
+    @Override
+    @Transactional
+    public Booking startTrip(Long bookingId) {
+        Booking booking = findById(bookingId);
+
+        if (booking == null) {
+            throw new RuntimeException("Booking not found with id: " + bookingId);
+        }
+
+        // Vérifier que la réservation est confirmée
+        if (booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new RuntimeException("Cannot start trip: booking must be confirmed first. Current status: " + booking.getStatus());
+        }
+
+        booking.setStatus(BookingStatus.ON_THE_WAY);
+
+        // Notifier le client que le barber est en route
+        notificationService.createNotification(
+                booking.getClient(),
+                "Barber On The Way",
+                booking.getBarber().getFullName() + " is on the way to your location.",
+                com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                "{\"bookingId\": " + booking.getId() + "}"
+        );
+
+        // Notifier le barber (confirmation)
+        notificationService.createNotification(
+                booking.getBarber(),
+                "Trip Started",
+                "You are now on the way to " + booking.getClient().getFullName() + ".",
+                com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                "{\"bookingId\": " + booking.getId() + "}"
+        );
+
+        return dao.save(booking);
+    }
+
+    @Override
+    @Transactional
+    public Booking markArrived(Long bookingId) {
+        Booking booking = findById(bookingId);
+
+        if (booking == null) {
+            throw new RuntimeException("Booking not found with id: " + bookingId);
+        }
+
+        // Vérifier que le barber était en route
+        if (booking.getStatus() != BookingStatus.ON_THE_WAY) {
+            throw new RuntimeException("Cannot mark arrived: barber must be on the way first. Current status: " + booking.getStatus());
+        }
+
+        booking.setStatus(BookingStatus.ARRIVED);
+
+        // Notifier le client que le barber est arrivé
+        notificationService.createNotification(
+                booking.getClient(),
+                "Barber Arrived",
+                booking.getBarber().getFullName() + " has arrived at your location.",
+                com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                "{\"bookingId\": " + booking.getId() + "}"
+        );
+
+        return dao.save(booking);
+    }
+
+    @Override
+    @Transactional
+    public Booking startService(Long bookingId) {
+        Booking booking = findById(bookingId);
+
+        if (booking == null) {
+            throw new RuntimeException("Booking not found with id: " + bookingId);
+        }
+
+        // Vérifier que le barber est arrivé
+        if (booking.getStatus() != BookingStatus.ARRIVED) {
+            throw new RuntimeException("Cannot start service: barber must have arrived first. Current status: " + booking.getStatus());
+        }
+
+        booking.setStatus(BookingStatus.IN_PROGRESS);
+
+        // Notifier le client que le service commence
+        notificationService.createNotification(
+                booking.getClient(),
+                "Service Started",
+                booking.getBarber().getFullName() + " has started the service.",
+                com.halaq.backend.notification.enums.NotificationType.IN_APP,
+                "{\"bookingId\": " + booking.getId() + "}"
+        );
+
+        return dao.save(booking);
     }
 }
