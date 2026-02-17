@@ -58,6 +58,12 @@ public class TimeBlockController extends AbstractController<TimeBlock, TimeBlock
         List<TimeBlock> list = service.findByBarberIdAndBetween(barberId, start, end);
         return ResponseEntity.ok(converter.toDto(list));
     }
+
+    @Operation(summary = "Deletes a booking by its ID")
+    @DeleteMapping("/id/{id}")
+    public ResponseEntity<Long> deleteById(@PathVariable Long id) throws Exception {
+        return super.deleteById(id);
+    }
 }
 
 
