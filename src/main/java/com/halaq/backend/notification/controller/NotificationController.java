@@ -3,11 +3,13 @@ package com.halaq.backend.notification.controller;
 import com.halaq.backend.core.security.entity.User;
 import com.halaq.backend.notification.dto.NotificationDto;
 import com.halaq.backend.notification.service.NotificationService;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import static com.halaq.backend.core.security.common.SecurityUtil.getCurrentUser;
@@ -35,6 +37,24 @@ public class NotificationController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "Deletes a booking by its ID")
+    @DeleteMapping("/id/{id}")
+    public ResponseEntity<?> deleteById(@PathVariable Long id) throws Exception {
+        notificationService.deleteById(id);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Marquer toutes les notifications comme lues
+     */
+    @PostMapping("/mark-all-read")
+    public ResponseEntity<?> markAllAsRead() {
+        int updatedCount = notificationService.markAllAsRead();
+        return ResponseEntity.ok(updatedCount);
+    }
+
+
+
     @GetMapping("/unread-count")
     public ResponseEntity<Long> getUnreadCount() {
         User user = getCurrentUser();
@@ -43,4 +63,8 @@ public class NotificationController {
         }
         return ResponseEntity.ok(notificationService.getUnreadCount(user.getId()));
     }
+
+
+
+
 }

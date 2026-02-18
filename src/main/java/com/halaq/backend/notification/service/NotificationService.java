@@ -12,12 +12,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+
+import static com.halaq.backend.core.security.common.SecurityUtil.getCurrentUser;
 
 @Service
 @RequiredArgsConstructor
@@ -133,8 +136,45 @@ public class NotificationService {
         });
     }
 
+    /**
+     * Marque toutes les notifications non lues d'un utilisateur comme lues
+     * @param userId L'ID de l'utilisateur
+     * @return Le nombre de notifications mises à jour
+     */
+    @Transactional
+    public int markAllAsRead(Long userId) {
+        log.info("📚 Marquage de toutes les notifications comme lues pour l'utilisateur ID: {}", userId);
+
+        LocalDateTime now = LocalDateTime.now();
+        int updatedCount = notificationRepository.markAllAsReadByUserId(userId, now);
+
+        log.info("✅ {} notifications marquées comme lues", updatedCount);
+
+
+        return updatedCount;
+    }
+
+    /**
+     * Marque toutes les notifications non lues d'un utilisateur comme lues
+     * @return Le nombre de notifications mises à jour
+     */
+    @Transactional
+    public int markAllAsRead() {
+        User recipient = getCurrentUser();
+        if (recipient == null || recipient.getId() == null) {
+            log.error("❌ Utilisateur invalide");
+            return 0;
+        }
+        return markAllAsRead(recipient.getId());
+    }
+
+
     @Transactional(readOnly = true)
     public long getUnreadCount(Long userId) {
         return notificationRepository.countByRecipient_IdAndReadAtIsNull(userId);
+    }
+
+    public void deleteById(Long id) {
+         notificationRepository.deleteById(id);
     }
 }
